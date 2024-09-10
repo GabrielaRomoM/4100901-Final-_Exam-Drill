@@ -22,6 +22,11 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
+#include "ssd1306.h"
+#include "ssd1306_fonts.h"
+#include "keypad.h"
+#include "led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,6 +36,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MAX_ID_LENGTH 10
+#define ID_OK "1080691539" // number of id
+#define LED_ON_DURATION 3000  // 3 seconds
 
 /* USER CODE END PD */
 
@@ -45,7 +53,10 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+char id[MAX_ID_LENGTH + 1];  // +1 for null terminator
+uint8_t id_idx = 0;
+uint8_t system_status = 0;  // 0: off, 1: PIN Correct, 2: PIN Incorrect
+uint32_t led_start_time = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,14 +72,46 @@ static void MX_I2C1_Init(void);
 /* USER CODE BEGIN 0 */
 int _write(int file, char *ptr, int len)
 {
-  // to using printf
-  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 10);
+  HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, HAL_MAX_DELAY);
   return len;
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
+	uint8_t key_pressed = keypad_scan(GPIO_Pin);
+	if (key_pressed != 0xFF){
+		printf("Pressed: %c\r\n",key_pressed);
+		if(key_pressed >='0' && key_pressed <= '9' && id_idx < MAX_ID_LENGTH){
+			id[id_idx++] = key_pressed;
+			id[id_idx] = '\0'; // Null-terminate the string
+			ssd1306_Fill(Black);
+			ssd1306_SetCursor(0,0);
+			ssd1306_WriteString("ID: ",Font_7x10,White);
+			ssd1306_SetCursor(0,15);
+			ssd1306_WriteString(id, Font_7x10,White);
+			ssd1306_UpdateScreen();
+			printf("ID Entered: %s\r\n", id);
+		}else if(key_pressed == '#'){
+			printf("Verifying ID\r\n");
+			if(strcmp(id,ID_OK)==0){
+				system_status=1; //ID CORRECT
+				printf("ID Correct\r\n");
+			}else{
+				system_status=2; // ID INCORRECT
+				printf("ID Incorrect\r\n");
+			}
+			led_start_time = HAL_GetTick();
+		}else if (key_pressed == '*'){
+			memset(id,0,sizeof(id));
+			id_idx = 0;
+			ssd1306_Fill(Black);
+			ssd1306_SetCursor(0,0);
+			ssd1306_WriteString("ID: ",Font_7x10,White);
+			ssd1306_UpdateScreen();
+			printf("Reset\r\n");
+		}
 
+		}
 }
 /* USER CODE END 0 */
 
@@ -104,15 +147,46 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
+  LED_Init(LED_GPIO_Port, LED_Pin);
+  ssd1306_Init();
+  ssd1306_Fill(Black);
+  ssd1306_SetCursor(0, 0);
+  ssd1306_WriteString("Enter ID:", Font_7x10, White);
+  ssd1306_UpdateScreen();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  printf("Starting...\r\n");
   while (1)
   {
     /* USER CODE END WHILE */
+	  if(system_status !=0){
+		  uint32_t current_time = HAL_GetTick();
+		  if(current_time - led_start_time <LED_ON_DURATION){
+			  if(system_status == 1){
+				  LED_SetState(LED_ON);
+			  }else{
+				  LED_SetState(LED_BLINK);
+			  }
+		   LED_Update();
+		  }else{
+			  LED_SetState(LED_OFF);
+			  ssd1306_Fill(Black);
+			  ssd1306_SetCursor(0,0);
+			  ssd1306_WriteString(system_status == 1 ? "Success" : "Error", Font_11x18, White);
+			  ssd1306_UpdateScreen();
+			  printf("Display Updated: %s\r\n", system_status == 1 ? "Success" : "Error");
+			  HAL_Delay(2000); // 2 seconds for display results
+			  ssd1306_Fill(Black);
+			  ssd1306_SetCursor(0,0);
+			  ssd1306_WriteString("Enter ID:", Font_7x10, White);
+			  ssd1306_UpdateScreen();
+			  printf("System Reset, Entry ID again\r\n");
+			  memset(id,0,sizeof(id));
+			  id_idx = 0;
+			  system_status=0;
+		  }
+	  }
 
     /* USER CODE BEGIN 3 */
   }
