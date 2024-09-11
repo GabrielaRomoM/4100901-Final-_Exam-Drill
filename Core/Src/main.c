@@ -36,9 +36,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define MAX_ID_LENGTH 10
-#define ID_OK "1080691539" // number of id
-#define LED_ON_DURATION 3000  // 3 seconds
+// Definition of Variables
+#define MAX_ID_LENGTH 10 // Maximum length for ID input
+#define ID_OK "1080691539" // Number of correct ID
+#define LED_ON_DURATION 3000  // Led On for 3 seconds (3000ms)
 
 /* USER CODE END PD */
 
@@ -53,10 +54,10 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-char id[MAX_ID_LENGTH + 1];  // +1 for null terminator
-uint8_t id_idx = 0;
-uint8_t system_status = 0;  // 0: off, 1: PIN Correct, 2: PIN Incorrect
-uint32_t led_start_time = 0;
+char id[MAX_ID_LENGTH + 1];  // Buffer for storing ID, +1 for null-termination
+uint8_t id_idx = 0;  // Index for the current position in the ID buffer
+uint8_t system_status = 0;  // System state: 0 = off, 1 = ID correct, 2 = ID incorrect
+uint32_t led_start_time = 0; // Time when the LED was turned on
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -81,9 +82,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	uint8_t key_pressed = keypad_scan(GPIO_Pin);
 	if (key_pressed != 0xFF){
 		printf("Pressed: %c\r\n",key_pressed);
+		// Handle numeric input
 		if(key_pressed >='0' && key_pressed <= '9' && id_idx < MAX_ID_LENGTH){
 			id[id_idx++] = key_pressed;
 			id[id_idx] = '\0'; // Null-terminate the string
+			// Update OLED display with entered ID
 			ssd1306_Fill(Black);
 			ssd1306_SetCursor(0,0);
 			ssd1306_WriteString("ID: ",Font_7x10,White);
@@ -91,6 +94,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 			ssd1306_WriteString(id, Font_7x10,White);
 			ssd1306_UpdateScreen();
 			printf("ID Entered: %s\r\n", id);
+		// Handle '#' key for ID verification
 		}else if(key_pressed == '#'){
 			printf("Verifying ID\r\n");
 			if(strcmp(id,ID_OK)==0){
@@ -101,6 +105,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 				printf("ID Incorrect\r\n");
 			}
 			led_start_time = HAL_GetTick();
+			// Handle '*' key for reset
 		}else if (key_pressed == '*'){
 			memset(id,0,sizeof(id));
 			id_idx = 0;
@@ -167,21 +172,24 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  if(system_status !=0){
 		  uint32_t current_time = HAL_GetTick();
+		  // Check if LED should be on or blinking
 		  if(current_time - led_start_time <LED_ON_DURATION){
 			  if(system_status == 1){
-				  LED_SetState(LED_ON);
+				  LED_SetState(LED_ON); // Correct ID: Solid LED
 			  }else{
-				  LED_SetState(LED_BLINK);
+				  LED_SetState(LED_BLINK);  // Incorrect ID: Blinking LED
 			  }
 			  LED_Update();
 		  }else{
+			  // After LED_ON_DURATION, turn off LED and update display
 			  LED_SetState(LED_OFF);
 			  ssd1306_Fill(Black);
 			  ssd1306_SetCursor(0,0);
 			  ssd1306_WriteString(system_status == 1 ? "Success" : "Error", Font_11x18, White);
 			  ssd1306_UpdateScreen();
 			  printf("Display Updated: %s\r\n", system_status == 1 ? "Success" : "Error");
-			  HAL_Delay(2000); // 2 seconds for display results
+			  HAL_Delay(1000); // Display result for 1 second
+			  // Reset system for next ID entry
 			  ssd1306_Fill(Black);
 			  ssd1306_SetCursor(0,0);
 			  ssd1306_WriteString("Enter ID:", Font_7x10, White);
