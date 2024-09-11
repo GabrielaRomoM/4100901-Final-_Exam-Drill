@@ -148,7 +148,10 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   LED_Init(LED_GPIO_Port, LED_Pin);
+  // Initialize SSD1306 OLED display
   ssd1306_Init();
+  printf("SSD1306 initialization attempted\r\n");
+  // Clear the display and show initial message
   ssd1306_Fill(Black);
   ssd1306_SetCursor(0, 0);
   ssd1306_WriteString("Enter ID:", Font_7x10, White);
@@ -160,6 +163,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
 	  if(system_status !=0){
 		  uint32_t current_time = HAL_GetTick();
 		  if(current_time - led_start_time <LED_ON_DURATION){
@@ -168,7 +173,7 @@ int main(void)
 			  }else{
 				  LED_SetState(LED_BLINK);
 			  }
-		   LED_Update();
+			  LED_Update();
 		  }else{
 			  LED_SetState(LED_OFF);
 			  ssd1306_Fill(Black);
@@ -181,14 +186,12 @@ int main(void)
 			  ssd1306_SetCursor(0,0);
 			  ssd1306_WriteString("Enter ID:", Font_7x10, White);
 			  ssd1306_UpdateScreen();
-			  printf("System Reset, Entry ID again\r\n");
+			  printf("System Reset, You can enter a new ID\r\n");
 			  memset(id,0,sizeof(id));
 			  id_idx = 0;
 			  system_status=0;
 		  }
 	  }
-
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
